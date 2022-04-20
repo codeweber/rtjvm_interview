@@ -176,3 +176,40 @@ class RListSpec extends AnyFlatSpec with Matchers:
     "sample" should "return a list of the desired length" in {
         RList.from(1 to 10).sample(100).length shouldBe 100
     }
+
+    "sorted" should "return a sorted list" in {
+        val l = RList.from(List(12, 14, 13, 11, 16, 10, 15, 17))
+        l.sorted shouldBe RList.from(10 to 17)
+    }
+
+    it should "return an empty list when list is empty" in {
+        RList.empty[Int].sorted shouldBe RNil
+    }
+
+    "mergeSorted" should "return a sorted list" in {
+        val l = RList.from(List(12, 14, 13, 11, 16, 10, 15, 17))
+        l.mergeSorted shouldBe RList.from(10 to 17)
+    }
+
+    it should "return an empty list when list is empty" in {
+        RList.empty[Int].mergeSorted shouldBe RNil
+    }
+
+    it should "return itself when list contains a single element" in {
+        val l = RList.from(1 to 1)
+        l.mergeSorted shouldBe l
+    }
+
+    "quickSorted" should "return a sorted list" in {
+        val l = RList.from(List(2,4,3,1))
+        l.quickSorted shouldBe RList.from(1 to 4)
+    }
+
+    it should "return an empty list when list is empty" in {
+        RList.empty[Int].quickSorted shouldBe RNil
+    }
+
+    it should "return itself when list contains a single element" in {
+        val l = RList.from(1 to 1)
+        l.quickSorted shouldBe l
+    }

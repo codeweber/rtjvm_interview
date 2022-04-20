@@ -44,6 +44,12 @@ sealed abstract class RList[+T]:
 
     def sample(k: Int): RList[T]
 
+    def sorted[S >: T](using ordering: Ordering[S]): RList[S]
+
+    def mergeSorted[S >: T](using ordering: Ordering[S]): RList[S]
+
+    def quickSorted[S >: T](using ordering: Ordering[S]): RList[S]
+
 
 
 case object RNil extends RList[Nothing]:
@@ -72,6 +78,12 @@ case object RNil extends RList[Nothing]:
     override def rotate(shift: Int): RList[Nothing] = RNil
 
     override def sample(k: Int): RList[Nothing] = RNil
+
+    override def sorted[S >: Nothing](using ordering: Ordering[S]): RList[S] = RNil
+
+    override def mergeSorted[S >: Nothing](using ordering: Ordering[S]): RList[S] = RNil
+
+    override def quickSorted[S >: Nothing](using ordering: Ordering[S]): RList[S] = RNil
 
 
 case class :+:[T](override val head: T, override val tail: RList[T]) extends RList[T]:
@@ -230,6 +242,137 @@ case class :+:[T](override val head: T, override val tail: RList[T]) extends RLi
         val len = this.length
 
         RList.from(1 to k).map(_ => this(r.nextInt(len)))
+
+    def sorted[S >: T](using ordering: Ordering[S]): RList[S] = 
+
+        @tailrec
+        def insertElement(x: S, searchedItems: RList[S], remainingItems: RList[S]): RList[S] = 
+
+            remainingItems match 
+                case RNil => (x :+: searchedItems).reverse 
+                case y :+: ys if ordering.compare(x, y) > 0 => insertElement(x, y :+: searchedItems, ys)
+                case y :+: ys => RList.reverseConcat(x :+: searchedItems, remainingItems)
+
+
+        @tailrec
+        def loop(remaining: RList[S], orderedAgg: RList[S]): RList[S] =
+
+            remaining match
+                case RNil => orderedAgg 
+                case x :+: xs => loop(xs, insertElement(x, RNil, orderedAgg))
+
+        loop(this, RNil)
+
+    def mergeSorted[S >: T](using ordering: Ordering[S]): RList[S] = 
+
+        @tailrec
+        def mergeLists(l1: RList[S], l2: RList[S], agg: RList[S]): RList[S] = 
+
+            l1 match
+                case RNil => RList.reverseConcat(agg, l2)
+                case x :+: xs =>
+                    l2 match 
+                        case RNil => RList.reverseConcat(agg, l1)
+                        case y :+: ys => 
+                            if ordering.lteq(x, y) then
+                                mergeLists(xs, l2, x :+: agg)
+                            else 
+                                mergeLists(l1, ys, y :+: agg)
+
+        /* 
+        def splitAt(l: RList[S], index: Int): (RList[S], RList[S]) = 
+
+            @tailrec
+            def splitTailRec(depth: Int, first: RList[S], second: RList[S]): (RList[S], RList[S]) =
+
+                if depth >= index then
+                    (first, second)
+                else
+                    splitTailRec(depth + 1, first.tail, first.head :+: second)
+
+            splitTailRec(0, this, RNil)
+
+        val midPoint = this.length / 2
+        if midPoint < 1 then
+            this
+        else 
+            val (l1, l2) = splitAt(this, midPoint)
+            println(s"List 1: $l1, List 2: $l2")
+            mergeLists(l1.mergeSorted, l2.mergeSorted, RNil)    
+        */
+
+        @tailrec
+        def loop(smallLists: RList[RList[S]], bigLists: RList[RList[S]]): RList[S] = 
+            if smallLists.isEmpty then
+                if bigLists.isEmpty then
+                    RNil 
+                else 
+                    if bigLists.tail.isEmpty then 
+                        bigLists.head 
+                    else
+                        loop(bigLists, RNil)
+            else
+                if smallLists.tail.isEmpty then 
+                    loop(RNil, smallLists.head :+: bigLists)
+                else 
+                    loop(smallLists.tail.tail, mergeLists(smallLists.head, smallLists.tail.head, RNil) :+: bigLists)
+
+        loop(this.map(x => x :+: RNil), RList.empty[RList[S]])
+
+    override def quickSorted[S >: T](using ordering: Ordering[S]): RList[S] =
+/* 
+        loop([5,4,2,1], [], [])
+        loop([2,1], [[5,4]], [])
+        loop([1], [[2], [5,4]], [])
+        loop([], [[2], [5,4]], [1])
+        loop([2], [[5,4]], [1])
+        loop([], [[5,4]], [2,1])
+        loop([5,4],[], [2,1])
+        loop([4], [[5]], [2,1])
+        loop([], [[5]], [4,2,1])
+        loop([5], [], [4,2,1])
+        loop([], [], [5,4,2,1])
+ */
+        @tailrec
+        def splitByPivot(l: RList[S], pivot: S, lessThan: RList[S], equalTo: RList[S], greaterThan: RList[S]): (RList[S], RList[S], RList[S]) = 
+
+            l match 
+                case RNil => (lessThan, equalTo, greaterThan)
+                case x :+: xs if ordering.lt(x, pivot) => splitByPivot(xs, pivot, x :+: lessThan, equalTo, greaterThan)
+                case x :+: xs if ordering.gt(x, pivot) => splitByPivot(xs, pivot, lessThan, equalTo, x :+: greaterThan)
+                case x :+: xs => splitByPivot(xs, pivot, lessThan, x :+: equalTo, greaterThan)
+
+        @tailrec
+        def loop(lessThan: RList[S], biggerThanStack: RList[RList[S]], agg: RList[S]): RList[S] = 
+
+            if lessThan.isEmpty then
+                if biggerThanStack.isEmpty then
+                    agg.reverse
+                else 
+                    loop(biggerThanStack.head, biggerThanStack.tail, agg)
+            else 
+
+                val midPoint = lessThan.length/2
+                if midPoint < 1 then 
+                    if biggerThanStack.isEmpty then 
+                        (lessThan.head :+: agg).reverse
+                    else
+                        loop(biggerThanStack.head, biggerThanStack.tail, lessThan.head :+: agg)
+                else 
+                    val p = lessThan(midPoint)
+                    val (lt, eq, gt) = splitByPivot(lessThan, p, RNil, RNil, RNil)
+                    if lt.isEmpty then
+                        loop(gt, biggerThanStack, RList.reverseConcat(eq, agg))
+                    else
+                        if gt.isEmpty then
+                            loop(lt, eq :+: biggerThanStack, agg)
+                        else 
+                            loop(lt, eq :+: gt :+: biggerThanStack, agg)
+
+        loop(this, RNil, RNil)
+
+
+end :+:
 
 object RList:
 
