@@ -17,6 +17,12 @@ sealed abstract class BTree[+T]:
 
   def collectNodesAtLevel(level: Int): List[BTree[T]]
 
+  def mirror: BTree[T]
+
+  def sameShapeAs[S >: T](that: BTree[S]): Boolean
+
+  def toList: List[T]
+
 
 case object BEnd extends BTree[Nothing]:
   override def value = throw new NoSuchElementException 
@@ -31,6 +37,13 @@ case object BEnd extends BTree[Nothing]:
   override val size = 0
 
   override def collectNodesAtLevel(level: Int) = List.empty
+
+  override def mirror: BTree[Nothing] = this
+
+  override def sameShapeAs[S >: Nothing](that: BTree[S]): Boolean =
+    that == BEnd
+
+  override def toList: List[Nothing] = Nil
 
 end BEnd
 
@@ -105,6 +118,67 @@ case class BNode[+T](override val value: T, override val left: BTree[T], overrid
       trCollectNodes(List((0, this)), List.empty)
 
 
-      
+  override def mirror: BTree[T] =
+
+    @tailrec
+    def mirrorTailRec(toExplore: List[BTree[T]], nodeStack: List[BTree[T]], childStack: List[BTree[T]]): BTree[T] = 
+
+      toExplore match 
+        case Nil => childStack.head 
+        case t :: ts => 
+          t match 
+            case BEnd => mirrorTailRec(ts, nodeStack, BEnd :: childStack)
+            case leaf @ BNode(v, BEnd, BEnd) => mirrorTailRec(ts, nodeStack, leaf :: childStack)
+            case node @ BNode(v, l, r) if nodeStack.headOption == Some(node) => 
+              childStack match 
+                case l :: r :: subtrees =>   
+                  val newNode = BNode(v, l, r)
+                  mirrorTailRec(ts, nodeStack.tail, newNode :: subtrees)
+                case _ => mirrorTailRec(ts, nodeStack.tail, childStack)
+            case node @ BNode(v, l, r) => mirrorTailRec(l :: r :: t :: ts, node :: nodeStack, childStack)
+ 
+    mirrorTailRec(List(this), List(), List())
+            
+  override def sameShapeAs[S >: T](that: BTree[S]): Boolean = 
+
+    @tailrec
+    def loop(thisSubtrees: List[BTree[T]], thatSubTrees: List[BTree[S]]): Boolean =
+
+      (thisSubtrees, thatSubTrees) match
+        case (Nil, Nil) => true 
+        case (Nil, _) => false 
+        case (_, Nil) => false 
+        case (x :: xs, y :: ys) =>
+          (x, y) match
+            case (BEnd, BEnd) => loop(xs, ys)
+            case (BNode(_, BEnd, BEnd), BNode(_, BEnd, BEnd)) => loop(xs, ys)
+            case (BNode(_, lx, rx), BNode(_, ly, ry)) => loop(lx :: rx :: xs, ly :: ry :: ys)
+            case _ => false
+
+    loop(List(this), List(that))
+
+  override def toList: List[T] =
+    //left.toList ++ List(value) ++ right.toList
+
+    @tailrec
+    def toListTailrec(toExplore: List[BTree[T]], agg: List[T]): List[T] =
+      if toExplore.isEmpty then 
+        agg.reverse
+      else 
+        val node = toExplore.head 
+        node match
+          case BEnd => toListTailrec(toExplore.tail, agg)
+          case BNode(v, BEnd, BEnd) => toListTailrec(toExplore.tail, v :: agg) 
+          case BNode(v, l, r) => 
+            //use following for in-order
+            toListTailrec(l :: BNode(v, BEnd, BEnd) :: r :: toExplore.tail, agg) 
+
+            //use following for pre-order
+            //toListTailrec(BNode(v, BEnd, BEnd) :: l :: r :: toExplore.tail, agg) 
+
+            //use following for post-order
+            //toListTailrec(l :: r :: BNode(v, BEnd, BEnd) :: toExplore.tail, agg) 
+
+    toListTailrec(List(this), List())
 
 
